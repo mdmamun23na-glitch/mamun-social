@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "371544399694",
+    "project_id": "mamun-social-e4b9b",
+    "storage_bucket": "mamun-social-e4b9b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:371544399694:android:0d50ed2139f94e3fef081f",
+        "android_client_info": {
+          "package_name": "com.mamun.social"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "371544399694-3b2vn7v35v9lrglg4qon96go91lcuch6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJjXsbFOpkQ1UrqN6QfnYNQjmF8zHUJW8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "371544399694-3b2vn7v35v9lrglg4qon96go91lcuch6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:371544399694:android:ebc1c35ecbd54e90ef081f",
+        "android_client_info": {
+          "package_name": "com.mamunsocial.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "371544399694-3b2vn7v35v9lrglg4qon96go91lcuch6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJjXsbFOpkQ1UrqN6QfnYNQjmF8zHUJW8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "371544399694-3b2vn7v35v9lrglg4qon96go91lcuch6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
