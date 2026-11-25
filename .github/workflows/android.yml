@@ -27,6 +27,59 @@ jobs:
       - name: Create Android Project
         run: flutter create . --platforms=android --org com.mamun --project-name social
 
+      - name: Configure Firebase Plugin
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          settings = Path("android/settings.gradle.kts")
+          app = Path("android/app/build.gradle.kts")
+
+          if settings.exists():
+              settings_text = settings.read_text()
+              settings_text = re.sub(
+                  r'(?m)^plugins\s*\{',
+                  'plugins {\n    id("com.google.gms.google-services") version "4.4.2" apply false',
+                  settings_text,
+                  count=1
+              )
+              settings.write_text(settings_text)
+
+              app_text = app.read_text()
+              app_text = re.sub(
+                  r'(?m)^plugins\s*\{',
+                  'plugins {\n    id("com.google.gms.google-services")',
+                  app_text,
+                  count=1
+              )
+              app.write_text(app_text)
+          else:
+              settings = Path("android/settings.gradle")
+              app = Path("android/app/build.gradle")
+              settings_text = settings.read_text()
+              settings_text = re.sub(
+                  r'(?m)^plugins\s*\{',
+                  "plugins {\n    id 'com.google.gms.google-services' version '4.4.2' apply false",
+                  settings_text,
+                  count=1
+              )
+              settings.write_text(settings_text)
+
+              app_text = app.read_text()
+              app_text = re.sub(
+                  r'(?m)^plugins\s*\{',
+                  "plugins {\n    id 'com.google.gms.google-services'",
+                  app_text,
+                  count=1
+              )
+              app.write_text(app_text)
+
+          if not Path("android/app/google-services.json").exists():
+              raise SystemExit("ERROR: google-services.json missing")
+          print("Firebase Plugin configured successfully")
+          PY
+
       - name: Install Dependencies
         run: flutter pub get
 

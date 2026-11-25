@@ -1,12 +1,15 @@
-
 import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MamunSocial());
-}
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 const purple = Color(0xFF8B5CF6);
 const dark = Color(0xFF09090F);
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const MamunSocial());
+}
 
 class MamunSocial extends StatelessWidget {
   const MamunSocial({super.key});
@@ -25,7 +28,31 @@ class MamunSocial extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const LoginScreen(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        }
+
+        return const LoginScreen();
+      },
     );
   }
 }
@@ -44,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool isLogin = true;
   bool showPassword = false;
+  bool loading = false;
 
   @override
   void dispose() {
@@ -53,20 +81,78 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void submit() {
-    if (emailController.text.trim().isEmpty ||
-        passwordController.text.isEmpty ||
-        (!isLogin && nameController.text.trim().isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('সব তথ্য পূরণ করো')),
-      );
+  Future<void> submit() async {
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    if (email.isEmpty || password.isEmpty ||
+        (!isLogin && name.isEmpty)) {
+      message('সব তথ্য পূরণ করো');
       return;
     }
 
+    if (!email.contains('@')) {
+      message('সঠিক Email Address দাও');
+      return;
+    }
+
+    if (password.length < 6) {
+      message('Password কমপক্ষে ৬ অক্ষরের হতে হবে');
+      return;
+    }
+
+    setState(() => loading = true);
+
+    try {
+      if (isLogin) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+      } else {
+        final result = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+
+        await result.user?.updateDisplayName(name);
+      }
+    } on FirebaseAuthException catch (e) {
+      String error = 'কাজটি সম্পন্ন হয়নি';
+
+      switch (e.code) {
+        case 'email-already-in-use':
+          error = 'এই Email দিয়ে আগে অ্যাকাউন্ট খোলা হয়েছে';
+          break;
+        case 'invalid-email':
+          error = 'Email Address সঠিক নয়';
+          break;
+        case 'weak-password':
+          error = 'Password আরও শক্তিশালী করো';
+          break;
+        case 'user-not-found':
+        case 'wrong-password':
+        case 'invalid-credential':
+          error = 'Email অথবা Password ভুল';
+          break;
+        case 'network-request-failed':
+          error = 'ইন্টারনেট সংযোগ পরীক্ষা করো';
+          break;
+      }
+
+      message(error);
+    } catch (e) {
+      message('সমস্যা হয়েছে: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  void message(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('ডিজাইন প্রস্তুত! Firebase সংযোগ পরের ধাপে হবে।'),
-      ),
+      SnackBar(content: Text(text)),
     );
   }
 
@@ -94,9 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: purple,
                   ),
                   onPressed: () {
-                    setState(() {
-                      showPassword = !showPassword;
-                    });
+                    setState(() => showPassword = !showPassword);
                   },
                 )
               : null,
@@ -121,7 +205,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 25),
-
                 Container(
                   height: 110,
                   width: 110,
@@ -148,9 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 22),
-
                 const Text(
                   'MAMUN SOCIAL',
                   style: TextStyle(
@@ -159,16 +240,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     letterSpacing: 2,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 const Text(
                   'Connect • Share • Discover',
                   style: TextStyle(color: Colors.white54),
                 ),
-
                 const SizedBox(height: 35),
-
                 Text(
                   isLogin ? 'Welcome Back!' : 'Create Account',
                   style: const TextStyle(
@@ -176,36 +253,30 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 25),
-
                 if (!isLogin)
                   inputField(
                     'Your Name',
                     Icons.person_outline,
                     nameController,
                   ),
-
                 inputField(
                   'Email Address',
                   Icons.email_outlined,
                   emailController,
                 ),
-
                 inputField(
                   'Password',
                   Icons.lock_outline,
                   passwordController,
                   password: true,
                 ),
-
                 const SizedBox(height: 10),
-
                 SizedBox(
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed: submit,
+                    onPressed: loading ? null : submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: purple,
                       foregroundColor: Colors.white,
@@ -213,19 +284,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(15),
                       ),
                     ),
-                    child: Text(
-                      isLogin ? 'LOGIN' : 'SIGN UP',
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
+                    child: loading
+                        ? const CircularProgressIndicator(
+                            color: Colors.white,
+                          )
+                        : Text(
+                            isLogin ? 'LOGIN' : 'SIGN UP',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
                   ),
                 ),
-
                 const SizedBox(height: 22),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -237,9 +310,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     TextButton(
                       onPressed: () {
-                        setState(() {
-                          isLogin = !isLogin;
-                        });
+                        setState(() => isLogin = !isLogin);
                       },
                       child: Text(
                         isLogin ? 'Sign Up' : 'Login',
@@ -251,9 +322,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 35),
-
                 const Text(
                   '© 2026 MAMUN SOCIAL',
                   style: TextStyle(
@@ -271,3 +340,61 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'MAMUN SOCIAL',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.account_circle,
+              size: 90,
+              color: purple,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Welcome to MAMUN SOCIAL!',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(user?.displayName ?? 'User'),
+            const SizedBox(height: 5),
+            Text(
+              user?.email ?? '',
+              style: const TextStyle(color: Colors.white54),
+            ),
+            const SizedBox(height: 25),
+            const Text(
+              'Connect • Share • Discover',
+              style: TextStyle(color: purple),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
