@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 const purple = Color(0xFF8B5CF6);
 const dark = Color(0xFF09090F);
@@ -340,8 +341,87 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class HomeScreen extends StatelessWidget {
+
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final postController = TextEditingController();
+  bool posting = false;
+
+  Future<void> createPost() async {
+    final caption = postController.text.trim();
+    if (caption.isEmpty) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    setState(() => posting = true);
+
+    try {
+      await FirebaseFirestore.instance.collection('Posts').add({
+        'caption': caption,
+        'uid': user.uid,
+        'userName': user.displayName ?? 'User',
+        'userEmail': user.email ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+        'likes': [],
+      });
+
+      postController.clear();
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post published successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Post failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => posting = false);
+    }
+  }
+
+  Future<void> toggleLike(String postId, List likes) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final ref = FirebaseFirestore.instance
+        .collection('Posts')
+        .doc(postId);
+
+    try {
+      if (likes.contains(user.uid)) {
+        await ref.update({
+          'likes': FieldValue.arrayRemove([user.uid]),
+        });
+      } else {
+        await ref.update({
+          'likes': FieldValue.arrayUnion([user.uid]),
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Like failed: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    postController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -351,7 +431,10 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'MAMUN SOCIAL',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: purple,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           IconButton(
@@ -363,37 +446,156 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.account_circle,
-              size: 90,
-              color: purple,
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Welcome to MAMUN SOCIAL!',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
+      body: Column(
+        children: [
+          Card(
+            margin: const EdgeInsets.all(12),
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: purple,
+                child: Icon(Icons.person, color: Colors.white),
+              ),
+              title: Text(user?.displayName ?? 'Welcome!'),
+              subtitle: const Text('What is on your mind?'),
+              trailing: IconButton(
+                icon: const Icon(Icons.add_circle, color: purple, size: 32),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Create Post'),
+                      content: TextField(
+                        controller: postController,
+                        maxLines: 5,
+                        maxLength: 1000,
+                        decoration: const InputDecoration(
+                          hintText: 'Write something...',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext),
+                          child: const Text('Cancel'),
+                        ),
+                        ElevatedButton(
+                          onPressed: posting ? null : createPost,
+                          child: posting
+                              ? const CircularProgressIndicator()
+                              : const Text('Publish'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
-            const SizedBox(height: 12),
-            Text(user?.displayName ?? 'User'),
-            const SizedBox(height: 5),
-            Text(
-              user?.email ?? '',
-              style: const TextStyle(color: Colors.white54),
+          ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'NEWS FEED',
+                style: TextStyle(
+                  color: purple,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
             ),
-            const SizedBox(height: 25),
-            const Text(
-              'Connect • Share • Discover',
-              style: TextStyle(color: purple),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('Posts')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error: ${snapshot.error}'),
+                  );
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: purple),
+                  );
+                }
+
+                final posts = snapshot.data?.docs ?? [];
+
+                if (posts.isEmpty) {
+                  return const Center(
+                    child: Text('No posts yet. Be the first to post!'),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: posts.length,
+                  itemBuilder: (context, index) {
+                    final doc = posts[index];
+                    final data = doc.data();
+                    final likes = List<dynamic>.from(data['likes'] ?? []);
+                    final liked = likes.contains(user?.uid);
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const CircleAvatar(
+                                  backgroundColor: purple,
+                                  child: Icon(Icons.person, color: Colors.white),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    data['userName'] ?? 'User',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 15),
+                            Text(
+                              data['caption'] ?? '',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            const Divider(height: 25),
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () => toggleLike(doc.id, likes),
+                                  icon: Icon(
+                                    liked ? Icons.favorite : Icons.favorite_border,
+                                    color: liked ? Colors.red : purple,
+                                  ),
+                                ),
+                                Text('${likes.length} Likes'),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
